@@ -52,13 +52,15 @@ if st.button("Send"):
         # Construct context from Pinecone results
         context = "\n".join([f"{match['metadata']['description']}" for match in response.matches])
 
-        # Generate a reply using OpenAI GPT
-        openai_response = openai.Completion.create(
-            engine="text-davinci-003",  # Replace with your preferred engine
-            prompt=f"Based on the following context, answer the query: {user_input}\n\nContext:\n{context}\n\nAnswer:",
+        openai_response = openai.ChatCompletion.create(
+            model="gpt-4",  # Replace with "gpt-4" if you have access to GPT-4
+            messages=[
+                {"role": "system", "content": "You are an assistant trained to answer questions based on provided context."},
+                {"role": "user", "content": f"Based on the following context, answer the query: {user_input}\n\nContext:\n{context}\n\nAnswer:"}
+            ],
             max_tokens=150
         )
-        reply = openai_response.choices[0].text.strip()
+        reply = openai_response["choices"][0]["message"]["content"].strip()
 
         # Append user input and reply to the chat history
         st.session_state.chat_history.append({"user": user_input, "bot": reply})

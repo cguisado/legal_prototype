@@ -39,7 +39,7 @@ if index_name not in pc.list_indexes().names():
 index = pc.Index(index_name)
 
 # Load the dataset
-dataset_path = "/Desktop/Prototype/Hybrid-LLM/Cleaned_Contract_Terms.csv"
+dataset_path = "/Users/carlos.guisado/Desktop/Prototype/Hybrid-LLM/Cleaned_Contract_Terms.csv"
 try:
     df = pd.read_csv(dataset_path)
 except FileNotFoundError:

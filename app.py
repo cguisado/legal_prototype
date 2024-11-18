@@ -4,11 +4,15 @@ from pinecone import Pinecone, ServerlessSpec
 from openai import OpenAI
 import os
 import pandas as pd
+import boto3
 
 # Retrieve API keys from environment variables
-pinecone_api_key = os.getenv("PINECONE_API_KEY")
+aws_access_key_id = st.secrets["AWS_ACCESS_KEY_ID"]
+aws_secret_access_key = st.secrets["AWS_SECRET_ACCESS_KEY"]
+pinecone_api_key = st.secrets["PINECONE_API_KEY"]
+
 client = OpenAI(
-  api_key=os.environ['OPENAI_API_KEY'],  # this is also the default, it can be omitted
+  api_key=st.secrets["OPENAI_API_KEY"],  # this is also the default, it can be omitted
 )
 pinecone_environment = "us-east-1"  # Your Pinecone environment
 index_name = "legalprototype"  # Your index name
@@ -39,11 +43,20 @@ if index_name not in pc.list_indexes().names():
 index = pc.Index(index_name)
 
 # Load the dataset
-dataset_path = "/Users/carlos.guisado/Desktop/Prototype/Hybrid-LLM/Cleaned_Contract_Terms.csv"
+# Replace 'your_access_key_id' and 'your_secret_access_key' with your actual AWS credentials
+s3 = boto3.client('s3',
+                  aws_access_key_id = aws_access_key_id,
+                  aws_secret_access_key = aws_secret_access_key)
+
+bucket_name = 'legalprototype'
+file_name = 'Cleaned_Contract_Terms.csv'
+
+# Read the CSV file directly from S3
 try:
-    df = pd.read_csv(dataset_path)
-except FileNotFoundError:
-    st.error(f"Dataset not found at {dataset_path}. Please check the file path.")
+    obj = s3.get_object(Bucket=bucket_name, Key=file_name)
+    df = pd.read_csv(obj['Body'])
+except Exception as e:
+    st.error(f"Error fetching dataset from S3: {str(e)}")
     st.stop()
 
 # Streamlit UI
@@ -59,6 +72,7 @@ if "chat_history" not in st.session_state:
 
 # Input for the chat
 user_input = st.text_input("Your question:", key="chat_input")
+
 if st.button("Send"):
     if user_input:
         # Generate embedding for the user query
@@ -73,21 +87,28 @@ if st.button("Send"):
             include_metadata=True
         )
 
-        # Construct context from Pinecone results
-        context = "\n".join([f"{match['metadata']['description']}" for match in response.matches])
+        # Extract relevant column descriptions from Pinecone results
+        column_context = "\n".join([f"{match['metadata']['description']}" for match in response.matches])
 
-        # Query the dataset
-        # Simplified filtering based on user input; adjust logic as needed
-        filtered_rows = df[df.apply(lambda row: any(str(row[col]).lower() in user_input.lower() for col in df.columns), axis=1)]
+        # Extract relevant column names for filtering the DataFrame
+        relevant_columns = [match['metadata']['column_name'] for match in response.matches if 'column_name' in match['metadata']]
 
-        # Construct row-level context
-        if not filtered_rows.empty:
-            row_context = filtered_rows.to_string(index=False)
+        # Filter the DataFrame based on relevant columns
+        if relevant_columns:
+            filtered_df = df[relevant_columns]
         else:
-            row_context = "No relevant rows found in the dataset."
+            filtered_df = pd.DataFrame()
 
-        # Combine context
-        full_context = f"Column Descriptions:\n{column_context}\n\nRelevant Data Rows:\n{row_context}"
+        # Construct context from filtered DataFrame
+        if not filtered_df.empty:
+            context = ""
+            for _, row in filtered_df.head(10).iterrows():  # Limit rows for token optimization
+                context += f"{row.to_string(index=False)}\n"
+        else:
+            context = "No relevant data found for the query."
+
+        # Combine context with column descriptions
+        full_context = f"Column Descriptions:\n{column_context}\n\nRelevant Data:\n{context}"
 
         # Generate a response
         try:
@@ -95,13 +116,13 @@ if st.button("Send"):
                 model="gpt-4",  # Use "gpt-3.5-turbo" if GPT-4 is not available
                 messages=[
                     {"role": "system", "content": "You are an assistant trained to answer questions based on provided context."},
-                    {"role": "user", "content": f"Based on the following context, answer the query: {user_input}\n\nContext:\n{full_context}\n\nAnswer:"}
+                    {"role": "user", "content": f"Based on the following context, answer the query: {user_input}\n\nContext:\n{full_context}"}
                 ],
                 max_tokens=150,
                 temperature=0.7
             )
 
-            # Extract the reply from the response using model_dump
+            # Extract the reply from the response
             reply = openai_response.choices[0].message.content.strip()
 
             # Append user input and reply to the chat history

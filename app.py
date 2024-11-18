@@ -1,6 +1,6 @@
 import streamlit as st
 from sentence_transformers import SentenceTransformer
-import pinecone
+from pinecone import Pinecone, ServerlessSpec
 from openai import OpenAI
 import os
 
@@ -21,8 +21,21 @@ if not client.api_key:
     st.stop()
 
 # Initialize Pinecone
-pinecone.init(api_key=pinecone_api_key, environment=pinecone_environment)
-index = pinecone.Index(index_name)
+pc = Pinecone(api_key=pinecone_api_key)
+
+# Check if index exists, if not create it
+if index_name not in pc.list_indexes().names():
+    pc.create_index(
+        name=index_name,
+        dimension=384,  # Adjust based on your embedding dimensions
+        metric='cosine',
+        spec=ServerlessSpec(
+            cloud='aws',
+            region=pinecone_environment
+        )
+    )
+
+index = pc.Index(index_name)
 
 # Streamlit UI
 st.title("Chat with Your Data")

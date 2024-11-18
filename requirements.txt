@@ -3,3 +3,4 @@ pinecone-client
 sentence-transformers
 openai>=1.54.4
 python-dotenv
+pandas

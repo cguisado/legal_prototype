@@ -3,6 +3,7 @@ from sentence_transformers import SentenceTransformer
 from pinecone import Pinecone, ServerlessSpec
 from openai import OpenAI
 import os
+import pandas as pd
 
 # Retrieve API keys from environment variables
 pinecone_api_key = os.getenv("PINECONE_API_KEY")

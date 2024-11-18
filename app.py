@@ -6,7 +6,7 @@ import os
 
 # Retrieve API keys from environment variables
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
-OpenAI.api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = os.getenv("OPENAI_API_KEY")
 pinecone_environment = "us-east-1"  # Your Pinecone environment
 index_name = "legalprototype"  # Your index name
 
@@ -14,7 +14,7 @@ index_name = "legalprototype"  # Your index name
 if not pinecone_api_key:
     st.error("PINECONE_API_KEY is not set. Please configure it in the Streamlit Cloud environment variables.")
     st.stop()
-if not OpenAI.api_key:
+if not openai.api_key:
     st.error("OPENAI_API_KEY is not set. Please configure it in the Streamlit Cloud environment variables.")
     st.stop()
 
@@ -23,8 +23,8 @@ pc = Pinecone(api_key=pinecone_api_key)
 index = pc.Index(index_name)
 
 # Streamlit UI
-st.title("Chat with Your Data")
-st.write("Type your question below and receive answers based on your indexed embeddings.")
+st.title("Chat with Your Legal Data")
+st.write("Type your question below regarding your legal contracts.")
 
 # Initialize the embedding model
 embedding_model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
@@ -70,8 +70,12 @@ if st.button("Send"):
             # Extract the reply from the response
             reply = openai_response.choices[0].message.content.strip()
 
-        # Append user input and reply to the chat history
-        st.session_state.chat_history.append({"user": user_input, "bot": reply})
+            # Append user input and reply to the chat history
+            st.session_state.chat_history.append({"user": user_input, "bot": reply})
+        
+        except openai.error.OpenAIError as e:
+            st.error(f"OpenAI API error: {str(e)}")
+            st.stop()
 
 # Display chat history
 st.write("### Chat History:")

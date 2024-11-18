@@ -137,3 +137,4 @@ st.write("### Chat History:")
 for message in st.session_state.chat_history:
     st.write(f"**You:** {message['user']}")
     st.write(f"**Bot:** {message['bot']}")
+

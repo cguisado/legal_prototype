@@ -37,6 +37,14 @@ if index_name not in pc.list_indexes().names():
 
 index = pc.Index(index_name)
 
+# Load the dataset
+dataset_path = "/Desktop/Prototype/Hybrid-LLM/Cleaned_Contract_Terms.csv"
+try:
+    df = pd.read_csv(dataset_path)
+except FileNotFoundError:
+    st.error(f"Dataset not found at {dataset_path}. Please check the file path.")
+    st.stop()
+
 # Streamlit UI
 st.title("Chat with Your Data")
 st.write("Type your question below and receive answers based on your indexed embeddings.")
@@ -67,13 +75,26 @@ if st.button("Send"):
         # Construct context from Pinecone results
         context = "\n".join([f"{match['metadata']['description']}" for match in response.matches])
 
+        # Query the dataset
+        # Simplified filtering based on user input; adjust logic as needed
+        filtered_rows = df[df.apply(lambda row: any(str(row[col]).lower() in user_input.lower() for col in df.columns), axis=1)]
+
+        # Construct row-level context
+        if not filtered_rows.empty:
+            row_context = filtered_rows.to_string(index=False)
+        else:
+            row_context = "No relevant rows found in the dataset."
+
+        # Combine context
+        full_context = f"Column Descriptions:\n{column_context}\n\nRelevant Data Rows:\n{row_context}"
+
         # Generate a response
         try:
             openai_response = client.chat.completions.create(
                 model="gpt-4",  # Use "gpt-3.5-turbo" if GPT-4 is not available
                 messages=[
                     {"role": "system", "content": "You are an assistant trained to answer questions based on provided context."},
-                    {"role": "user", "content": f"Based on the following context, answer the query: {user_input}\n\nContext:\n{context}\n\nAnswer:"}
+                    {"role": "user", "content": f"Based on the following context, answer the query: {user_input}\n\nContext:\n{full_context}\n\nAnswer:"}
                 ],
                 max_tokens=150,
                 temperature=0.7

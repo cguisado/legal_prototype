@@ -1,8 +1,7 @@
 import streamlit as st
-import openai
-import pinecone
+from openai import OpenAI
+from pinecone import Pinecone, ServerlessSpec
 import boto3
-import json
 from sentence_transformers import SentenceTransformer
 import pandas as pd
 

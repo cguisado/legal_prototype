@@ -101,8 +101,7 @@ def get_context(document, question):
 
 # Main function to get a response
 def get_response(question, bucket_name, file_name):
-
-#Get context from the document
+    # Get context from the document
     context = get_context(document, question)
 
     # Formulate the prompt for OpenAI including the context
@@ -123,7 +122,7 @@ def get_response(question, bucket_name, file_name):
     # Step 5: Get response from OpenAI
     try:
         openai_response = client.chat.completions.create(
-            model="gpt-3.5-turbo", #gpt-4 if needed
+            model="gpt-3.5-turbo",  # gpt-4 if needed
             messages=messages,
             max_tokens=100,
             temperature=0.5
@@ -134,7 +133,7 @@ def get_response(question, bucket_name, file_name):
         return reply
     except Exception as e:
         # Handle exceptions
-        return f"Error: {e}"
+        st.write(f"Error: {e}")
 
 # Display chat history
 def chat_history():
@@ -166,5 +165,5 @@ if st.button("Send"):
 
         except Exception as e:
             # Handle exceptions
-            return f"Error: {e}"
+            st.write(f"Error: {e}")
 

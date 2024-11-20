@@ -32,6 +32,7 @@ if not client.api_key:
 
 # Initialize Pinecone
 pc = Pinecone(api_key=pinecone_api_key)
+index = pc.Index(index_name)
 
 # Initialize S3 client
 s3 = boto3.client('s3',

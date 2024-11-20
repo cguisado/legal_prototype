@@ -39,6 +39,10 @@ s3 = boto3.client('s3',
                   aws_access_key_id = aws_access_key_id,
                   aws_secret_access_key = aws_secret_access_key)
 
+# Streamlit UI
+st.title("Chat with Your Contracts")
+st.write("Enter your question below to explore details from your current contracts")
+
 # Initialize the embedding model
 embedding_model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
 
@@ -48,7 +52,7 @@ if 'chat_history' not in st.session_state:
 
 # Function to fetch the document from S3
 @st.cache_data
-def fetch_document_once():
+def fetch_document_once(bucket_name, file_name):
     try:
         obj = s3.get_object(Bucket=bucket_name, Key=file_name)
         document = pd.read_csv(obj['Body'])
@@ -63,32 +67,13 @@ def get_embedding(text):
 
 # Function to index document chunks in Pinecone
 def index_document(document):
-    chunk_size = 10  # Adjust chunk size (number of rows per chunk)
-    total_rows = len(document)
-    
-    for i in range(0, total_rows, chunk_size):
-        chunk_df = document.iloc[i:i + chunk_size]
-        chunk_str = chunk_df.to_string(index=False)
-        embedding = get_embedding(chunk_str)
-        index.upsert(vectors=[(f"doc_chunk_{i//chunk_size}", embedding, {"text": chunk_str})])
-
-# Cache the document indexing
-@st.cache_data
-def index_document_once(document):
-    # Check if index exists, if not create it
-    if index_name not in pc.list_indexes().names():
-        pc.create_index(
-            name=index_name,
-            dimension=384,  # Adjust based on your embedding dimensions
-            metric='cosine',
-            spec=ServerlessSpec(
-                cloud='aws',
-                region=pinecone_environment
-            )
-        )
-    
-    # Index the document chunks in Pinecone
-    index_document(document)
+    # Convert DataFrame to string format for embedding
+    document_str = document.to_string(index=False)
+    chunk_size = 500  # Adjust chunk size as necessary
+    chunks = [document_str[i:i + chunk_size] for i in range(0, len(document_str), chunk_size)]
+    for i, chunk in enumerate(chunks):
+        embedding = get_embedding(chunk)
+        index.upsert(vectors=[(f"doc_chunk_{i}", embedding, {"text": chunk})])
 
 # Search Pinecone index
 def search_pinecone(query_embedding, top_k=1):
@@ -114,34 +99,37 @@ def get_context(document, question):
     return context
 
 # Main function to get a response
-def get_response(question, document):
-    # Step 1: Get context from the document
+def get_response(question, bucket_name, file_name):
+
+#Get context from the document
     context = get_context(document, question)
 
-    # Step 2: Formulate the prompt for OpenAI including the context
+    # Formulate the prompt for OpenAI including the context
     if context.strip():
+        prompt = f"Document context: {context}\n\nQuestion: {question}\nAnswer:"
         messages = [
-            {"role": "system", "content": "You are an assistant trained to answer questions based on provided context. If the context is not sufficient, use your general knowledge to answer. In this case, do not say that context was not found."},
+            {"role": "system", "content": "You are an assistant trained to answer questions based on provided context. If the context is not sufficient, use your general knowledge to answer."},
             {"role": "user", "content": f"Based on the following context, answer the query: {question}\n\nContext:\n{context}"}
         ]
     else:
         # If no context is found, just use the question to leverage OpenAI's general knowledge
+        prompt = question
         messages = [
             {"role": "system", "content": "You are an assistant trained to answer questions."},
             {"role": "user", "content": question}
         ]
 
-    # Step 3: Get response from OpenAI
+    # Step 5: Get response from OpenAI
     try:
         openai_response = client.chat.completions.create(
-            model="gpt-3.5-turbo",  # gpt-4 if needed
+            model="gpt-3.5-turbo", #gpt-4 if needed
             messages=messages,
             max_tokens=100,
-            temperature=0.3
+            temperature=0.5
         )
         
         # Extract the reply from the response
-        reply = openai_response.choices[0].message['content'].strip()
+        reply = openai_response.choices[0].message.content.strip()
         return reply
     except Exception as e:
         # Handle exceptions
@@ -159,7 +147,7 @@ def chat_history():
 # user question
 question = st.text_input("Your question:", key="chat_input")
 # Fetch document from S3
-document = fetch_document_once()
+document = fetch_document_once(bucket_name, file_name)
 index_document_once(document)
 
 # Display the answer from model
@@ -169,8 +157,12 @@ if st.button("Send"):
             response = get_response(question, document)
             # Append user input and reply to the chat history
             st.session_state.chat_history.append({"user": question, "bot": response})
-            # display chat history
-            chat_history()
+            # Display chat history
+            st.write("### Chat History:")
+            for message in st.session_state.chat_history:
+                st.write(f"**You:** {message['user']}")
+                st.write(f"**Bot:** {message['bot']}")
+
         except openai.error.OpenAIError as e:
             st.error(f"OpenAI API error: {str(e)}")
             st.stop()

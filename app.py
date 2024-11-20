@@ -155,7 +155,7 @@ index_document_once(document)
 if st.button("Send"):
     if question:
         try:
-            response = get_response(question, document)
+            response = get_response(question, bucket_name, file_name)
             # Append user input and reply to the chat history
             st.session_state.chat_history.append({"user": question, "bot": response})
             # Display chat history
@@ -164,7 +164,7 @@ if st.button("Send"):
                 st.write(f"**You:** {message['user']}")
                 st.write(f"**Bot:** {message['bot']}")
 
-        except openai.error.OpenAIError as e:
-            st.error(f"OpenAI API error: {str(e)}")
-            st.stop()
+        except Exception as e:
+            # Handle exceptions
+            return f"Error: {e}"
 

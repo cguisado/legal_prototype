@@ -65,7 +65,8 @@ def get_embedding(text):
     return embedding_model.encode(text).tolist()
 
 # Function to index document chunks in Pinecone
-def index_document(document):
+@st.cache_data
+def index_document_once(document):
     # Convert DataFrame to string format for embedding
     document_str = document.to_string(index=False)
     chunk_size = 500  # Adjust chunk size as necessary
